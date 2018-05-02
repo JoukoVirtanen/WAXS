@@ -1,0 +1,51 @@
+#ifndef _ReadRTF_included_
+#define _ReadRTF_included_
+
+# include "IOUtils.h"
+# include "LinkedList.h"
+# include "ReadPdb.h"
+# include "ResidueCode.h"
+# include "StringUtils.h"
+# include "Structures.h"
+# include "WritePdb.h"
+
+void ReadRtfFile(string RtfFile, vector<AtomStruct> &CharmmAtoms)
+{
+	bool valid;
+	char CharRtfFile[1000];
+	string line;
+	AtomStruct CharmmAtom;
+	
+	strcpy(CharRtfFile, RtfFile.c_str());
+	valid=exist(CharRtfFile);
+	if (!valid)
+	{
+		cout <<"Error unable to open Rtf file "<<RtfFile<<endl;
+		exit(0);
+	}
+	
+	fstream File;
+	File.open(CharRtfFile, ios::in);
+	getline(File, line);
+	while (true)
+	{
+		if (File.eof()) break;
+		if (line.substr(0,4)=="RESI")
+		{
+			CharmmAtom.ResidueName=line.substr(5,4);
+			Trim(CharmmAtom.ResidueName);
+		}
+		if (line.substr(0,4)=="ATOM")
+		{
+			CharmmAtom.AtomName=line.substr(5,4);
+			CharmmAtom.CharmmAtomName=line.substr(10,4);
+			CharmmAtom.charge=StrToFloat(line.substr(18,5));
+			Trim(CharmmAtom.AtomName);
+			Trim(CharmmAtom.CharmmAtomName);
+			CharmmAtoms.push_back(CharmmAtom);
+		}	
+		getline(File, line);
+	}
+	File.close();
+}
+#endif

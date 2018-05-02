@@ -1,0 +1,50 @@
+#ifndef _MinMax_included_
+#define _MinMax_included_
+
+# include "Structures.h"
+# include "TypeDef.h"
+
+void MinMax(Real &XMin, Real &YMin, Real &ZMin, Real &XMax, Real &YMax, Real &ZMax, vector<AtomStruct> Atoms)
+{
+        int n, natom;
+	natom=Atoms.size();
+        XMin=Atoms[0].x;
+        YMin=Atoms[0].y;
+        ZMin=Atoms[0].z;
+        XMax=Atoms[0].x;
+        YMax=Atoms[0].y;
+        ZMax=Atoms[0].z;
+        for (n=0;n<natom;n++)
+        {
+                if (Atoms[n].x<XMin) XMin=Atoms[n].x;
+                if (Atoms[n].y<YMin) YMin=Atoms[n].y;
+                if (Atoms[n].z<ZMin) ZMin=Atoms[n].z;
+                if (Atoms[n].x>XMax) XMax=Atoms[n].x;
+                if (Atoms[n].y>YMax) YMax=Atoms[n].y;
+                if (Atoms[n].z>ZMax) ZMax=Atoms[n].z;
+        }
+}
+
+template <class Vector_T>
+void MinMax(Real &XMin, Real &YMin, Real &ZMin, Real &XMax, Real &YMax, Real &ZMax, Vector_T pos)
+{
+        int n, natom;
+	natom=pos.size();
+        XMin=pos[0].x;
+        YMin=pos[0].y;
+        ZMin=pos[0].z;
+        XMax=pos[0].x;
+        YMax=pos[0].y;
+        ZMax=pos[0].z;
+        for (n=0;n<natom;n++)
+        {
+                if (pos[n].x<XMin) XMin=pos[n].x;
+                if (pos[n].y<YMin) YMin=pos[n].y;
+                if (pos[n].z<ZMin) ZMin=pos[n].z;
+                if (pos[n].x>XMax) XMax=pos[n].x;
+                if (pos[n].y>YMax) YMax=pos[n].y;
+                if (pos[n].z>ZMax) ZMax=pos[n].z;
+        }
+}
+#endif
+

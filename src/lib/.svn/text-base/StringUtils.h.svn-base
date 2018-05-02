@@ -1,0 +1,225 @@
+/*******************************************************************************
+
+                              StringUtils.h
+                              -------------
+
+  ****************************************************************************
+  *                                                                          *
+  *   This library is free software; you can redistribute it and/or          *
+  *   modify it under the terms of the GNU Lesser General Public             *
+  *   License as published by the Free Software Foundation; either           *
+  *   version 2.1 of the License, or (at your option) any later version.     *  
+  *                                                                          *
+  *   This library is distributed in the hope that it will be useful,        *
+  *   but WITHOUT ANY WARRANTY; without even the implied warranty of         *
+  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU      *
+  *   Lesser General Public License for more details.                        * 
+  *                                                                          *
+  *   You should have received a copy of the GNU Lesser General Public       * 
+  *   License along with this library; if not, write to the Free Software    *
+  *   Foundation, Inc.,                                                      *
+  *   59 Temple Place, Suite 330, Boston, MA  02111-1307  USA                *
+  *                                                                          *
+  ****************************************************************************
+
+  Copyright (C) 2005 The University of Chicago
+
+  Authors: 
+  Andrés Colubri
+
+  Description: 
+  Defines classes and functions to handle strings.
+
+*******************************************************************************/
+
+#ifndef __STRING_UTILS_H__
+#define __STRING_UTILS_H__
+
+#include <cstdio>
+#include <fstream>
+#include <cstddef> // Needed to use NULL.
+#include <string>
+using namespace std;
+
+#include "LinkedList.h"
+
+#ifndef _WIN32
+const char DIR_SEP = '/';
+#endif
+#ifdef _WIN32
+const char DIR_SEP = '\\';
+#endif
+
+const char CARRIAGE_RETURN = '\r';
+const char LINE_FEED = '\n';
+const char SPACE = ' ';
+const char SEMICOLON = ';';
+const char COMMA = ',';
+
+const char *const EMPTY_STR = "";
+const char *const POINT_STR = ".";
+const char *const SEMICOLON_STR = ";";
+const char *const COMMA_STR = ",";
+const char *const MLINE_STR = "-";
+const char *const ZERO_STR = "0";
+const char *const SPACE_STR = " ";
+const char *const OCORC_STR = "[";
+const char *const CCORC_STR = "]";
+const char *const OPARE_STR = "(";
+const char *const CPARE_STR = ")";
+const char *const COMSP_STR = ", ";
+
+const char *const BOOL_TRUE_STR = "TRUE";
+const char *const BOOL_FALSE_STR = "FALSE";
+
+const char *const BOOL_T_STR = "T";
+const char *const BOOL_F_STR = "F";
+
+const char *const BOOL_true_STR = "true";
+const char *const BOOL_false_STR = "false";
+
+const char *const BOOL_t_STR = "t";
+const char *const BOOL_f_STR = "f";
+
+const char *const BOOL_YES_STR = "YES";
+const char *const BOOL_NO_STR = "NO";
+
+const char *const BOOL_Y_STR = "Y";
+const char *const BOOL_N_STR = "N";
+
+const char *const BOOL_yes_STR = "yes";
+const char *const BOOL_no_STR = "no";
+
+const char *const BOOL_y_STR = "y";
+const char *const BOOL_n_STR = "n";
+
+const char *const BOOL_1_STR = "1";
+const char *const BOOL_0_STR = "0";
+
+/******************************* class TStringList *****************************
+Basically, a C++ reimplementation (more or less) of the Delphi class of the same
+name. Holds a linked list of strings, adding the capability of saving/loading
+them to/from a file/stream.
+*******************************************************************************/
+class TStringList : public TLinkedList<string>
+{
+public:
+    // Derived constructors.
+    TStringList() : TLinkedList<string>() { NULLdata = EMPTY_STR; }
+    TStringList(const TLinkedList<string> &list) : TLinkedList<string>(list) { NULLdata = EMPTY_STR; }
+    // New constructors.
+    TStringList(const string &str, bool filename = true);
+    TStringList(istream &stream);
+
+    // This function inserts the text specified by str to the list of strings, at
+    // position idx. The text given is divided in lines, according to the presence
+    // of new-line characters. The number of inserted lines is returned.
+    int InsertText(int idx, const string &text);
+    int AddText(const string &text) { return InsertText(NodeCount, text); }
+    string Text(); // This function returns all the strings together.
+
+    // I/O functions.
+    int LoadFromStream(istream &stream);
+    int SaveToStream(ostream &stream);
+    int LoadFromFile(const string &FileName);
+    int SaveToFile(const string &FileName, bool append = false);
+
+    void DeleteBlankLines(); // Deletes all blank lines.
+    void DeleteLines(char c); // Deletes all lines that start with character c.
+    void TrimLines(); // Trims all lines.
+
+    void Clean(); // Deletes blank and commented lines and trims all remaining lines.
+};
+
+/*************************** Miscelaneous functions ***************************/
+
+// Returns a string containing n characters chr's.
+string CharString(int n, char chr);
+
+// Returns a string containing n spaces.
+string Spaces(int n);
+
+// Gives true if chr is a digit.
+bool Digit(char chr);
+
+// Gives true if n is a valid integer number.
+bool ValidInt(string &n);
+
+// Adds to the string str the substring "(" + FloatToStr(d0) + ", " + FloatToStr(d1) + ")".
+void AddStrInt(string &str, double d0, double d1);
+void AddStrInt(string &str, int i0, int i1);
+
+// Gives the position of the first appearance of substring substr in string str.
+inline int Pos(const string &substr, const string &str)
+{
+    string::size_type p = str.find(substr, 0);
+    if (string::npos == p) return -1; else return p;
+}
+
+inline int Pos(const char &chr, const string &str)
+{
+    string::size_type p = str.find(chr, 0);
+    if (string::npos == p) return -1; else return p;
+}
+
+void DeleteChar(string &str, const char &chr);
+
+/******************************* Search functions *****************************/
+
+// Gives the starting position of the n-th ocurrence of the string/char strf/cf in the
+// string str, starting at position pos.
+// Literal strings can be passed (i.e.: nfind("example"...)) because const string &str.
+string::size_type nfind(const string &str, const string &strf, int n, string::size_type pos = 0);
+string::size_type nfind(const string &str, char cf, int n, string::size_type pos = 0);
+
+// Gives the string that appears between two consecutive ocurrences of character c,
+// for the n-th time. No literal strings are supported (because string &str).
+string StringBtChar(const string &str, char c, int n, string::size_type &p0,
+                                                      string::size_type &p1, bool trim = false);
+string StringBtChar(const string &str, char c, int n, bool trim = false);
+
+// Gives the number of substrings appearing between two consecutive ocurrences of
+// character c.
+int NStringBtChar(const string &str, char c);
+
+// Returns the n-th line (substring isolated by new-lines characters) in the string str.
+inline string LineInString(const string &str, int n) { return StringBtChar(str, LINE_FEED, n); }
+inline int NLinesInString(const string &str) { return NStringBtChar(str, LINE_FEED); }
+
+// Returns the n-th word (substring isolated by spaces) in the string str.
+inline string WordInString(const string &str, int n) { return StringBtChar(str, SPACE, n); }
+inline int NWordsInString(const string &str) { return NStringBtChar(str, SPACE); }
+
+// Returns the n-th word in the list str. Each word in the list is separated by the ';'
+// character.
+inline string WordInList(const string &str, int n) { return StringBtChar(str, SEMICOLON, n); }
+inline int NWordsInList(const string &str) { return NStringBtChar(str, SEMICOLON); }
+
+/******************************* Edit functions *******************************/
+
+// Trim functions.
+inline void TrimLeft(string &str) { str.erase(0, str.find_first_not_of(SPACE_STR)); }
+inline void TrimRight(string &str) { str.erase(str.find_last_not_of(SPACE_STR) + 1); }
+inline void Trim(string &str) { TrimLeft(str); TrimRight(str); }
+
+/***************************** Conversion functions ***************************/
+
+// Returns a string object containing the integer n.
+string IntToStr(int n, char *format = "%i");
+
+// Returns a string object containing the double n.
+string FloatToStr(double n, char *format = "%G");
+
+// Just wrappers for the functions atoi and atof applied to a string object (in
+// order to mimic the Delphi functions StrToInt and StrToFloat).
+inline int StrToInt(const string &str) { return atoi(str.c_str()); }
+inline double StrToFloat(const string &str) { return atof(str.c_str()); }
+
+inline int CharToInt(char c) { return c - 48; }
+
+// Conversion between strings and boolean values.
+bool StrToBool(const string &str);
+//string BoolToStr(const bool &b);
+string BoolToYesNo(const bool &b);
+
+#endif

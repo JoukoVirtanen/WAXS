@@ -1,0 +1,107 @@
+#ifndef _ReadGofRFile_included_
+#define _ReadGofRFile_included_
+
+# include "IOUtils.h"
+# include "TypeDef.h"
+
+const Real UNK_DENSITY=-666.0;
+
+void ReadGofRFile3(string GofRFile, Real contrast, vector< vector<Real> > &DensityMatrix)
+{
+	bool valid;
+	char CharLine[100], chargofrfile[1000];
+	char *Space;
+	int m, n;
+	int NumSolventTypes, MaxRecord;
+	int distance;
+	string line, str;
+	Real dist;
+
+	cout <<"In readgofrfile3"<<endl;
+
+	NumSolventTypes=2000;
+	MaxRecord=1000;
+	strcpy(chargofrfile, GofRFile.c_str());
+	valid=exist(chargofrfile);
+	if (!valid)
+	{
+		cout <<"Error. GofRFile "<<GofRFile<<" cannot be opened."<<endl;
+		exit(0);
+	}
+
+	fstream gofr;
+	gofr.open(chargofrfile,ios::in);
+	cout <<"chargofrfile= "<<chargofrfile<<endl;
+	getline(gofr, line);
+	while (true)
+	{
+		if (line.substr(0,3)=="END") break;
+		if (gofr.eof()) break;
+		if (line.substr(0,15)=="NumSolventTypes")
+		{
+			NumSolventTypes=StrToInt(line.substr(16,10));
+			cout <<"NumSolventTypes= "<<NumSolventTypes<<endl;
+		}
+
+		if (line.substr(0,9)=="MaxRecord")
+		{
+			MaxRecord=StrToInt(line.substr(10,10));
+			cout <<"NumSolventTypes= "<<NumSolventTypes<<endl;
+			cout <<"MaxRecord= "<<MaxRecord<<endl;
+			CreateMatrix(DensityMatrix, NumSolventTypes, MaxRecord);
+			cout <<"After CreateMatrix"<<endl;
+			for (m=0;m<NumSolventTypes;m++)
+			{
+				for (n=0;n<MaxRecord;n++)
+				{
+					if (n<30) DensityMatrix[m][n]=UNK_DENSITY;
+					else DensityMatrix[m][n]=UNK_DENSITY;
+					//cout <<"DensityMatrix["<<m<<"]["<<n<<"]= "<<DensityMatrix[m][n]<<endl;
+				}
+			}
+		}
+		//cout <<"After Initialized DensityMatrix"<<endl;
+		if (line.substr(0,8)=="AtomType")
+		{
+			n=StrToInt(line.substr(9,15));
+			str=line.substr(0,10);
+			distance=0;
+			//cout <<line<<endl;
+			//cout <<line.substr(9,15)<<endl;
+			//cout <<"n= "<<n<<endl;
+			while (true)
+			{
+				getline(gofr,line);
+				if (line.substr(0,1)==" ") cout <<"Break found"<<endl;
+				if (line.substr(0,8)=="AtomType")
+				{
+					n++;
+					break;
+				}
+				strcpy(CharLine, line.c_str());
+				Space=strchr(CharLine,' ');
+				if (Space==NULL) break;
+				if (line.substr(0,1)==" " || line.substr(0,3)=="END") break;
+				line=" " + line + " ";
+				dist=StrToFloat(GetWord(line, 1));
+				distance=int(dist/0.1+0.5);
+				str=GetWord(line, 2);
+				DensityMatrix[n][distance]=StrToFloat(str)-contrast;
+				//cout <<line<<endl;
+				//cout <<dist<<" "<<str<<endl;
+				//cout <<"DensityMatrix["<<n<<"]["<<distance<<"]= "<<DensityMatrix[n][distance]<<endl;
+			}
+		}
+		getline(gofr, line);
+	}
+	for (n=0;n<NumSolventTypes;n++)
+	{
+		for (distance=0;distance<MaxRecord;distance++)
+		{
+			//cout <<"DensityMatrix["<<n<<"]["<<distance<<"]= "<<DensityMatrix[n][distance]<<endl;
+		}
+	}
+	gofr.close();	
+}
+
+#endif

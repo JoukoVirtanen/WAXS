@@ -1,0 +1,187 @@
+#ifndef _ReadDCD_included_
+#define _ReadDCD_included_
+# include <iostream>
+# include <fstream>
+# include <string>
+# include <cstring>
+# include <sstream>
+# include <time.h>
+# include <vector>
+# include <iomanip>
+# include <complex>
+# include <numeric>
+
+# include "StringUtils.h"
+# include "Structures.h"
+
+using namespace std;
+
+
+void ReadDcd(string DCDFile, vector<AtomStruct> &Atoms, int nthstruct, int &nstructures, Real &XBoxLength, Real &YBoxLength, Real &ZBoxLength)
+{
+	bool verbose=true;
+	ifstream::pos_type size;
+	char *title, *memblock, CharDCDFile[1000];
+	//int istrt;
+	//int interval, zero, nfreat, natom, steps, ndegf, delta, cryst, vernum;
+	int natom, ntitle1;
+	int cont;
+	int position;
+	vector<int> control;
+	float x, y, z;
+	int Int;
+	//float Float;
+	double Double;
+	vector<double> xtal;
+	size=4;
+	cout <<"Reading structure number "<<nthstruct<<" of DCDFile "<<DCDFile<<endl;
+	strcpy(CharDCDFile, DCDFile.c_str());
+	ifstream file(CharDCDFile, ios::in|ios::binary|ios::ate);
+	if (file.is_open())
+	{
+		size=file.tellg();
+		size=4;
+		if (verbose) cout <<"size= "<<size<<endl;
+		memblock=new char[size];
+		if (verbose) cout <<"sizeof(int)= "<<sizeof(int)<<endl;
+		file.seekg(size, ios::beg);
+		file.read(memblock, 4);
+		for (int i=0;i<20;i++)
+		{
+			file.read(reinterpret_cast<char *>(&cont), sizeof(int));
+			control.push_back(cont);
+		}
+		file.read(reinterpret_cast<char *>(&ntitle1), sizeof(int));
+		size=ntitle1;
+		title=new char[1];
+		for (int i=0;i<ntitle1;i++)
+		{
+			file.read(title, 1);
+			if (verbose) cout <<title[0];
+		}
+		if (verbose) cout <<endl<<endl<<endl;
+		if (verbose) cout <<"ntitle= "<<ntitle1<<endl;
+		if (verbose) cout <<"80-ntitle1= "<<80-ntitle1<<endl;
+		for (int i=0;i<ntitle1;i++)
+		{
+			//cout <<"file.tellg()= "<<file.tellg()<<endl;
+			file.read(title, 1);
+			if (verbose) cout <<title[0];
+		}
+		if (verbose) cout <<endl;
+		if (verbose) cout <<"file.tellg()= "<<file.tellg()<<endl;
+		file.read(reinterpret_cast<char *>(&Int), sizeof(Int));
+		if (verbose) cout <<"Int= "<<Int<<endl;
+		file.read(reinterpret_cast<char *>(&Int), sizeof(Int));
+		if (verbose) cout <<"Int= "<<Int<<endl;
+		if (verbose) cout <<"file.tellg()= "<<file.tellg()<<endl;
+		file.read(reinterpret_cast<char *>(&natom), sizeof(natom));
+		if (verbose) cout <<"file.tellg()= "<<file.tellg()<<endl;
+		if (natom!=Atoms.size())
+		{
+			cout <<"ERROR: The number of atoms in the psf, "<<Atoms.size()
+			<<", does not match the number of atoms in the dcd file, "<<natom<<endl;
+			exit(EXIT_FAILURE);
+		}
+		if (verbose) cout <<"natom= "<<natom<<endl;
+		if (verbose) cout <<"file.tellg()= "<<file.tellg()<<endl;
+		for (int i=0;i<1;i++)
+		{
+			file.read(reinterpret_cast<char *>(&Int), sizeof(&Int));
+			if (verbose) cout <<"Int= "<<Int<<endl;
+		}
+		if (verbose) cout <<"file.tellg()= "<<file.tellg()<<endl;
+		position=file.tellg();
+                if (verbose) cout <<"position= "<<position<<endl;
+		position+=(6*sizeof(double)+8*sizeof(int)+3*natom*sizeof(float))*(nthstruct-1);
+                if (verbose) cout <<"position= "<<position<<endl;
+		file.seekg(position);
+		for (int i=0;i<6;i++)
+		{
+			file.read(reinterpret_cast<char *>(&Double), sizeof(Double));
+			xtal.push_back(Double);
+			if (verbose) cout <<"xtal= "<<Double<<endl;
+		}
+		XBoxLength=Real(xtal[0]);
+		YBoxLength=Real(xtal[2]);
+		ZBoxLength=Real(xtal[5]);
+                for (int i=0;i<1;i++)
+		{
+			if (verbose) cout <<"file.tellg()= "<<file.tellg()<<endl;
+			file.read(reinterpret_cast<char *>(&Int), sizeof(Int));
+			if (verbose) cout <<"Int= "<<Int<<endl;
+			file.read(reinterpret_cast<char *>(&Int), sizeof(Int));
+			if (verbose) cout <<"Int= "<<Int<<endl;
+			//file.read(reinterpret_cast<char *>(&Float), sizeof(Float));
+			//cout <<Float<<endl;
+		}
+		for (int i=0;i<natom;i++)
+		{
+			file.read(reinterpret_cast<char *>(&x), sizeof(x));
+			Atoms[i].x=Real(x);
+			//cout <<x<<endl;
+		}
+		file.read(reinterpret_cast<char *>(&Int), sizeof(Int));
+		if (verbose) cout <<"Int= "<<Int<<endl;
+		file.read(reinterpret_cast<char *>(&Int), sizeof(Int));
+		if (verbose) cout <<"int= "<<Int<<endl;
+		for (int i=0;i<natom;i++)
+		{
+			file.read(reinterpret_cast<char *>(&y), sizeof(y));
+			Atoms[i].y=Real(y);
+			//cout <<y<<endl;
+		}
+		file.read(reinterpret_cast<char *>(&Int), sizeof(Int));
+		if (verbose) cout <<"Int= "<<Int<<endl;
+		file.read(reinterpret_cast<char *>(&Int), sizeof(Int));
+		if (verbose) cout <<"int= "<<Int<<endl;
+		for (int i=0;i<natom;i++)
+		{
+			file.read(reinterpret_cast<char *>(&z), sizeof(z));
+			Atoms[i].z=Real(z);
+			//cout <<z<<endl;
+		}
+		file.read(reinterpret_cast<char *>(&Int), sizeof(Int));
+		if (verbose) cout <<"Int= "<<Int<<endl;
+		file.read(reinterpret_cast<char *>(&Int), sizeof(Int));
+		if (verbose) cout <<"int= "<<Int<<endl;
+		for (int i=0;i<6;i++)
+		{
+			file.read(reinterpret_cast<char *>(&Double), sizeof(Double));
+			if (verbose) cout <<"xtal= "<<Double<<endl;
+		}
+		for (int i=0;i<10;i++)
+		{
+			if (verbose) cout <<Atoms[i].x<<"\t"<<Atoms[i].y<<"\t"<<Atoms[i].z<<endl;
+		}
+		if (verbose) cout <<endl;
+		for (int i=natom-10;i<natom;i++)
+		{
+			if (verbose)cout <<Atoms[i].x<<"\t"<<Atoms[i].y<<"\t"<<Atoms[i].z<<endl;
+		}
+		file.close();
+		if (verbose)
+		{
+			cout <<"hdr= "<<memblock<<endl;
+			cout <<"nset= "<<control[0]<<endl;
+			cout <<"istrt= "<<control[1]<<endl;
+			cout <<"nsavc= "<<control[2]<<endl;
+			cout <<"steps= "<<control[3]<<endl;
+			cout <<"ndegf= "<<control[7]<<endl;
+			cout <<"nfreat= "<<control[8]<<endl;
+			cout <<"delta= "<<control[9]<<endl;
+			cout <<"cryst= "<<control[10]<<endl;
+			cout <<"vernum= "<<control[19]<<endl;
+			cout <<"ntitle= "<<ntitle1<<endl;
+			//cout <<ntitle2<<endl;
+			cout <<"title= "<<title[0]<<endl;
+			cout <<"natom= "<<natom<<endl;
+			cout <<"x= "<<x<<endl;
+		}
+		nstructures=control[0];
+		delete[] memblock;
+	}
+	else cout <<"Unable to open DCD file "<<DCDFile;
+	delete [] title;
+}
+#endif

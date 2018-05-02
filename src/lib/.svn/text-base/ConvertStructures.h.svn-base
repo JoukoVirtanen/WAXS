@@ -1,0 +1,45 @@
+#ifndef _ConvertStructures_included_
+#define _ConvertStructures_included_
+
+# include "AtomIDs.h"
+# include "Constants.h"
+# include "VectorManip.h"
+
+void ConvertCubesToAtoms(vector<CubeStruct> &Cubes, vector<AtomStruct> &Atoms)
+{
+	int i, ncubes=Cubes.size();
+	AtomStruct Atom;
+	Atom.AtomName="O";
+	Atom.ResidueName="HOH";
+	Atom.HetAtom=true;
+	DeleteVector(Atoms);
+	for (i=0;i<ncubes;i++)
+	{
+		Atom.x=Cubes[i].x;
+		Atom.y=Cubes[i].y;
+		Atom.z=Cubes[i].z;
+		Atom.weight=Cubes[i].density;
+		Atom.atomid=CUBE;
+		Atom.AtomNumber=Cubes[i].IntDist;
+		Atom.ResidueNum=Cubes[i].AtomType;
+		Atoms.push_back(Atom);
+	}
+}
+
+void ConvertAtomsToCubes(vector<AtomStruct> &Atoms, vector<CubeStruct> &Cubes)
+{
+	int i, natom=Atoms.size();
+	CubeStruct Cube;
+	for (i=0;i<natom;i++)
+	{
+		Cube.x=Atoms[i].x;
+		Cube.y=Atoms[i].y;
+		Cube.z=Atoms[i].z;
+		Cube.density=Atoms[i].BFactor;
+		Cube.AtomType=Atoms[i].ResidueNum;
+		Cube.IntDist=Atoms[i].AtomNumber;
+		Cubes.push_back(Cube);
+	}
+}
+
+#endif

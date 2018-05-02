@@ -1,0 +1,150 @@
+#ifndef _Structures_included_
+#define _Structures_included_
+
+# include <iostream>
+# include <fstream>
+# include <string>
+# include <cstring>
+# include <sstream>
+# include <time.h>
+# include <vector>
+# include <iomanip>
+# include <complex>
+# include <numeric>
+
+using namespace std;
+
+# include "Constants.h"
+# include "TypeDef.h"
+
+class AtomStruct
+{
+	public:
+		bool HetAtom;
+		int AtomNumber, ResidueNum;
+		int atomid, AtomType, AtomType2;
+		int ParmType;
+		int residueid, atomtype;
+		vector<int> connectivity;
+		Real weight, Electrons, charge, mass, partialcharge, vdw;
+		Real epsilon, epsilon14, vdw14, HydrationRadius;
+		Real x, y, z, Occupancy, BFactor;
+		string AtomName, CharmmAtomName, duplicate, ResidueName, ChainName, SegID, ID;
+		AtomStruct();
+};
+
+struct ProteinStruct
+{
+	string name;
+	Real XBoxLength, YBoxLength, ZBoxLength;
+	vector<AtomStruct> Atoms;
+};
+
+AtomStruct::AtomStruct()
+{
+	AtomNumber=0;
+	ResidueNum=0;
+	atomid=0;
+	AtomType=0;
+	AtomType2=0;
+	ParmType=0;
+	residueid=0;
+	atomtype=0;
+	weight=1.0;
+	Electrons=0;
+	charge=0;
+	mass=0;
+	x=0;
+	y=0;
+	z=0;
+	Occupancy=0;
+	BFactor=0;
+	AtomName="";
+	CharmmAtomName="";
+	ResidueName="";
+	ChainName="A";
+	SegID="";
+	ID="";
+}
+
+struct VectorStruct
+{
+	Real x, y, z;
+	VectorStruct operator + (VectorStruct);
+	VectorStruct operator - (VectorStruct);
+	VectorStruct operator * (Real);
+	VectorStruct operator / (Real);
+};
+
+struct CubeStruct
+{
+	bool angular, phobic, concave;
+	Real x, y, z, density, MinDist;
+	int AllAtomType, AtomType, ElementType;
+	int IntDist, LocatedIn, nearest, SecondNearest;
+	//Real NumAtoms[NumAtomTypes];
+	VectorStruct dipole;
+};
+
+void InitializeCube(CubeStruct &Cube)
+{
+	Cube.angular=false;
+	Cube.phobic=false;
+	Cube.concave=false;
+	Cube.x=0;
+	Cube.y=0;
+	Cube.z=0;
+	Cube.density=0;
+	Cube.MinDist=0;
+	Cube.AllAtomType=0;
+	Cube.AtomType=0;
+	Cube.ElementType=0;
+	Cube.IntDist=0;
+	Cube.LocatedIn=InProtein;
+	Cube.nearest=0;
+	Cube.SecondNearest=0;
+	Cube.dipole.x=0;
+	Cube.dipole.y=0;
+	Cube.dipole.z=0;
+	//for (int i=0;i<NumAtomTypes;i++) Cube.NumAtoms[i]=0;
+}
+
+void PrintCubeInfo(CubeStruct &Cube)
+{
+	cout <<"x= "<<Cube.x<<" y= "<<Cube.y<<" z= "<<Cube.z<<endl;
+	cout <<"density= "<<Cube.density<<" MinDist= "<<Cube.MinDist<<" Cube.IntDist= "<<Cube.IntDist<<endl;
+	cout <<"AllAtomType= "<<Cube.AllAtomType<<" AtomType= "<<Cube.AtomType<<" ElementType= "<<Cube.ElementType<<endl;
+	cout <<"LocatedIn= "<<Cube.LocatedIn<<" nearest= "<<Cube.nearest<<" SecondNearest= "<<Cube.SecondNearest<<endl;
+	cout <<"angular= "<<Cube.angular<<" phobic= "<<Cube.phobic<<" concave= "<<Cube.concave<<endl;
+}
+
+void CopyCube(CubeStruct Cube1, CubeStruct &Cube2)
+{
+	Cube2.angular=Cube1.angular;
+	Cube2.phobic=Cube1.phobic;
+	Cube2.concave=Cube1.concave;
+	Cube2.x=Cube1.x;
+	Cube2.y=Cube1.y;
+	Cube2.z=Cube1.z;
+	Cube2.density=Cube1.density;
+	Cube2.MinDist=Cube1.MinDist;
+	Cube2.AllAtomType=Cube1.AllAtomType;
+	Cube2.AtomType=Cube1.AtomType;
+	Cube2.ElementType=Cube1.ElementType;
+	Cube2.IntDist=Cube1.IntDist;
+	Cube2.nearest=Cube1.nearest;
+	Cube2.SecondNearest=Cube1.SecondNearest;
+}
+
+typedef vector< vector< vector<CubeStruct> > > lattice;
+
+struct ElementStruct
+{
+	Real HydrationRadius, SolventCorrectedElectrons;
+};
+
+struct PrStruct
+{
+	vector<Real> r, all;
+};
+#endif

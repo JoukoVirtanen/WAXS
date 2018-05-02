@@ -1,0 +1,7 @@
+#ifndef _TypeDef_included_
+#define _TypeDef_included_ 
+
+typedef long double Real;
+typedef vector< vector<Real> > Matrix;
+
+#endif

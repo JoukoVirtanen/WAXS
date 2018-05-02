@@ -1,0 +1,15 @@
+#ifndef _Constants_included_
+#define _Constants_included_
+
+# include "TypeDef.h"
+
+const Real pi=3.1415926535389793;
+const long double LongPi=3.14159265358979323846264338327950288419716939937510;
+
+const int InProtein=0;
+const int InHydrationShell=1;
+const int InSolution=2;
+
+const int HYDROPHOBIC=0;
+const int HYDROPHILIC=1;
+#endif

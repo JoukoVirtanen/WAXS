@@ -1,0 +1,281 @@
+#ifndef _IOUtils_included_
+#define _IOUtils_included_
+
+# include "VectorManip.h"
+
+bool exist(char charfile[100])
+{
+	bool n;
+
+	fstream file;
+	file.open(charfile,ios::in);
+
+	if (!file) n=false;
+	else n=true;
+
+	return n;
+}
+
+void OpenFile(string File, fstream &file, string FileType)
+{
+	char CharFile[1000];
+	strcpy(CharFile, File.c_str());
+	if (!exist(CharFile))
+	{
+		cout <<"Error. "<<FileType<<" "<<File<<" cannot be opened."<<endl;
+		exit(0);
+	}
+	file.open(CharFile, ios::in);
+}
+
+void ReadLines(string File, vector<string> &lines, string FileType)
+{
+	fstream file;
+	string line;
+
+	OpenFile(File, file, FileType);
+	getline(file, line);
+	while (true)
+	{
+		if (file.eof()) break;
+		lines.push_back(line);
+		getline(file, line);
+	}
+	file.close();
+}
+
+string GetWord(string line, int WordNum)
+{
+        int n, position, WordCount;
+        string str;
+
+        WordCount=count(line.begin(),line.end(),' ');
+
+        if (WordNum<WordCount)
+        {
+                for (n=0;n<WordNum;n++)
+                {
+
+                        while (true)
+                        {
+                                str=line[0];
+
+                                if (str==" ") line=line.substr(1,100);
+                                else break;
+
+                                WordCount=count(line.begin(),line.end(),' ');
+                                if (WordCount==0) break;
+                        }
+
+                        if (WordCount>0)
+                        {
+                                position=line.find(" ");
+                                str=line.substr(0,position);
+                                line=line.substr(position, 100);
+                        }
+                        else str=line.substr(0,100);
+                }
+        }
+
+        return str;
+}
+
+bool GetLineInFile(string PdbFilePaths, string &line, int nthstruct)
+{
+	fstream file;
+	OpenFile(PdbFilePaths, file, "StructureFilePaths");
+	cout <<"PdbFilePaths= "<<PdbFilePaths<<endl;
+	getline(file, line);
+	for (int i=0;i<nthstruct-1;i++)
+	{
+		if (file.eof()) 
+		{
+			file.close();
+			return false;
+		}
+		getline(file, line);
+		//cout <<"line= "<<line<<endl;
+	}
+	file.close();
+	return true;
+}
+
+void AddIndexToFile(string &str)
+{
+	char CharFile[100];
+	string prefix, suffix;
+	string StrFileIndex;
+	bool valid;
+	int FileIndex, position;
+
+	strcpy(CharFile, str.c_str());
+	valid=exist(CharFile);
+	FileIndex=2;
+
+	position=str.rfind(".");
+	prefix=str.substr(0, position);
+	suffix=str.substr(position+1, 4);
+
+	while (valid)
+	{
+		stringstream out;
+		out << FileIndex;
+		StrFileIndex=out.str();
+		str=prefix+StrFileIndex+"."+suffix;
+		strcpy(CharFile, str.c_str());
+		valid=exist(CharFile);
+		FileIndex++;
+	}
+}
+
+string GetWord2(string line, int WordNum)
+{
+        int n, position, tab, space, WordCount;
+        string str;
+	//cout <<"In GetWord2"<<endl;
+	line="\t"+line+"\t";
+	line=" "+line+" ";
+
+        WordCount=count(line.begin(),line.end(),'\t');
+	WordCount+=count(line.begin(),line.end(),' ');
+	//cout <<"WordCount= "<<WordCount<<endl;
+        if (WordNum<WordCount)
+        {
+                for (n=0;n<WordNum;n++)
+                {
+
+                        while (true)
+                        {
+                                str=line[0];
+
+                                if (str=="\t" || str==" ") line=line.substr(1,1000);
+                                else break;
+
+                                WordCount=count(line.begin(),line.end(),'\t');
+				WordCount+=count(line.begin(),line.end(),' ');
+				//cout <<"WordCount2= "<<WordCount<<endl;
+                                if (WordCount==0) break;
+                        }
+
+                        if (WordCount>0)
+                        {
+                                tab=line.find("\t");
+				space=line.find(" ");
+				//cout <<"tab= "<<tab<<" space= "<<space<<endl;
+				if (space<tab && space>-1) position=space;
+				else position=tab;
+				//cout <<"position= "<<position<<endl;
+                                str=line.substr(0,position);
+				//cout <<"str= "<<str<<endl;
+                                line=line.substr(position, 1000);
+				//cout <<"line= "<<line<<endl;
+                        }
+                        else str=line.substr(0,1000);
+                }
+        }
+
+        return str;
+}
+
+string RemoveExtension(string file)
+{
+	size_t position;
+
+	position=file.rfind(".");
+	if (position!=string::npos)
+	{
+		return file.substr(0,position);
+	}
+	return file;
+}
+
+string GetBase(string file)
+{
+	size_t position;
+
+	position=file.rfind("/");
+	if (position!=string::npos)
+	{
+		return file.substr(position+1, file.length()-position-1);
+	}
+	return file;
+}
+
+bool StrToBool(const string &str)
+{
+    return (str == BOOL_TRUE_STR) || (str == BOOL_T_STR) ||
+           (str == BOOL_YES_STR) || (str == BOOL_Y_STR) ||
+           (str == BOOL_true_STR) || (str == BOOL_t_STR) ||
+           (str == BOOL_yes_STR) || (str == BOOL_y_STR) ||
+           (str == BOOL_1_STR);
+}
+
+string BoolToStr(bool BOOL)
+{
+        if (BOOL) return "yes";
+        else return "no";
+}
+
+void Tokenize(string line, string str, vector<string> &v)
+{
+	size_t found;
+	DeleteVector(v);
+	while (true)
+	{
+		found=line.find(str);
+		if (found!=string::npos)
+		{
+			if (found>0) v.push_back(line.substr(0,found));
+			line=line.substr(found+1,line.length()-found-1);
+		}
+		else break;
+	}
+	v.push_back(line);
+}
+
+void DeleteFromLeft(string &line, string str)
+{
+	while (true)
+	{
+		if (line.substr(0,str.length())==str) line=line.substr(str.length(), line.length()-str.length());
+		else break;
+	}
+}
+
+void Tokenize2(string line, string str, vector<string> &v)
+{
+	size_t found;
+	DeleteVector(v);
+	while (true)
+	{
+		DeleteFromLeft(line, str);
+		found=line.find(str);
+		if (found!=string::npos)
+		{
+			if (found>0) v.push_back(line.substr(0,found));
+			line=line.substr(found+1,line.length()-found-1);
+		}
+		else break;
+	}
+	v.push_back(line);
+}
+
+void Delete(string &line, string str)
+{
+	int i, Size;
+	vector<string> v;
+	Tokenize(line, str, v);
+	Size=v.size();
+	line="";
+	for (i=0;i<Size;i++) line+=v[i];
+}
+
+void DeleteStartingAt(string &line, string str)
+{
+	size_t found;
+	found=line.find(str);
+	if (found!=string::npos) line=line.substr(0,found);
+}
+
+#endif
+

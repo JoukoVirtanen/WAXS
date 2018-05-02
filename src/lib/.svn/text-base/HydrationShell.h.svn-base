@@ -1,0 +1,1020 @@
+#ifndef _HydrationShell_included_
+#define _HydrationShell_included_
+
+# include "AtomCode.h"
+# include "Constants.h"
+# include "GetAtomType.h"
+# include "LinkedList.h"
+# include "MinMax.h"
+# include "ReadGofRFile.h"
+# include "ResidueCode.h"
+# include "StringUtils.h"
+# include "Structures.h"
+# include "TypeDef.h"
+
+Real FindLargestVDWRadius(vector<AtomStruct> &Atoms)
+{
+	int natom=Atoms.size();
+	Real LargestRadius=0;
+
+	for (int i=0;i<natom;i++)
+	{
+		if (Atoms[i].vdw>LargestRadius) LargestRadius=Atoms[i].vdw;
+	}
+	return LargestRadius;
+}
+
+Real IsOverlap(vector<AtomStruct> Atoms, Real xgrid, Real ygrid, Real zgrid, int &nearest, int natom)
+{
+	int n;
+	Real CutOff, dist, LargestRadius, mindist=1000.0;
+	Real dx, dy, dz;
+	CutOff=mindist*mindist;
+	
+	LargestRadius=FindLargestVDWRadius(Atoms);
+	for (n=0;n<natom;n++)
+	{
+		dx=Atoms[n].x-xgrid;
+		dy=Atoms[n].y-ygrid;
+		dz=Atoms[n].z-zgrid;
+		dist=dx*dx+dy*dy+dz*dz;
+		//cout <<"dist= "<<dist<<endl;
+		if (dist<CutOff)
+		{
+			//if (Print) cout <<"n= "<<n<<" dist= "<<dist<<" CutOff= "<<CutOff<<endl;
+			//cout <<"dist= "<<dist<<" Atoms["<<n<<"].vdw= "<<Atoms[n].vdw<<" mindist= "<<mindist<<endl;
+			dist=sqrt(dist)-Atoms[n].vdw;
+			CutOff=(dist+LargestRadius)*(dist+LargestRadius);
+
+			if (dist<mindist)
+			{
+				//if (Print) cout <<"dist= "<<dist<<" mindist= "<<mindist<<endl;
+				mindist=dist;
+				nearest=n;
+				if (mindist<0) break;
+			}
+		}
+	}
+	return mindist;
+}
+
+int location(Real xgrid, Real ygrid, Real zgrid, int natom, int &nearest, Real &mindist, vector<AtomStruct> &Atoms, Real maxhs)
+{
+	//This needs to be compared against MD simulations to validate.
+	//Detemines if a point is inside the protein, in the hydration shell, or outside of the protein
+	//bool Print=false;
+	bool accept=false;
+	int located, NearestTest;
+	//Real buffer=0;   //The hydration shell atom radius minus the distance a hydration shell atom can stick out of the hydtation shell
+	Real ProteinHydrationBoundary, HydrationSolutionBoundary;
+	Real MinDistTest;
+	Real dx, dy, dz;
+	Real xtest, ytest, ztest;
+	Real ProbeRadius=1.4;
+	Real r;
+	Real radii;
+
+	located=UNK;
+	Real HydrationShellR=0.75;
+	ProteinHydrationBoundary=ProbeRadius+HydrationShellR*0.5;
+	HydrationSolutionBoundary=maxhs;	
+	natom=FindNumProteinAtoms(Atoms);
+	mindist=IsOverlap(Atoms, xgrid, ygrid, zgrid, nearest, natom);
+	if (mindist<ProteinHydrationBoundary) located=InProtein;
+	if (mindist>ProteinHydrationBoundary && mindist<HydrationSolutionBoundary) located=InHydrationShell;
+	if (mindist>HydrationSolutionBoundary) located=InSolution;
+	//if (Print) cout <<"mindist= "<<mindist<<" ProbeRadius= "<<ProbeRadius<<" maxhs= "<<maxhs<<" buffer= "<<buffer<<endl;
+	if (mindist>ProteinHydrationBoundary && mindist<ProteinHydrationBoundary+ProbeRadius)
+	{
+		dx=xgrid-Atoms[nearest].x;
+		dy=ygrid-Atoms[nearest].y;
+		dz=zgrid-Atoms[nearest].z;
+		r=1.0/sqrt(dx*dx+dy*dy+dz*dz);
+		radii=Atoms[nearest].vdw+ProbeRadius;
+		xtest=Atoms[nearest].x+radii*dx*r;
+		ytest=Atoms[nearest].y+radii*dy*r;
+		ztest=Atoms[nearest].z+radii*dz*r;
+		MinDistTest=IsOverlap(Atoms, xtest, ytest, ztest, NearestTest, natom);
+
+		if (MinDistTest>ProbeRadius) accept=true;
+
+		if (!accept)
+		{
+			xtest=xgrid+ProbeRadius*dx*r;
+			ytest=ygrid+ProbeRadius*dy*r;
+			ztest=zgrid+ProbeRadius*dz*r;
+			MinDistTest=IsOverlap(Atoms, xtest, ytest, ztest, NearestTest, natom);
+			if (MinDistTest>ProbeRadius) accept=true;
+		}
+		if (accept) located=InHydrationShell;
+		else located=InProtein;
+	}
+	//if (Print) cout <<"location= "<<location<<endl;
+	if (located==UNK)
+	{
+		cout <<"Error.  Unable to find location."<<endl;
+		located=InProtein;
+	}
+	return located;
+}
+
+bool IsOverlapPairlist(vector<AtomStruct> &Atoms, int PairList[], int PairListNum, Real CutOff, Real CutOff2, Real ProbeRadius, Real xgrid, Real ygrid, Real zgrid)
+{
+	Real DistToSphere, r2;
+	Real dx, dy, dz;
+	for (int n=0;n<PairListNum;n++)
+	{
+		dz=Atoms[PairList[n]].z-zgrid;
+		if ( dz<CutOff && dz>-CutOff )
+		{
+			dx=Atoms[PairList[n]].x-xgrid;
+			dy=Atoms[PairList[n]].y-ygrid;
+			r2=dx*dx+dy*dy+dz*dz;
+			if ( r2<CutOff2 )
+			{
+				DistToSphere=sqrt(r2)-Atoms[PairList[n]].vdw;
+				if (DistToSphere<ProbeRadius) return true;
+			}
+		}
+	}
+	return false;
+}
+
+void FindNearestVDWSurface(CubeStruct &Cube, vector<AtomStruct> &Atoms, int natom, Real LargestRadius)
+{
+	Real CutNearest=10000.0;
+	Real r, dx, dy, dz;
+	Cube.MinDist=10000.0;
+	for (int m=0;m<natom;m++)
+	{
+		dx=Cube.x-Atoms[m].x;
+		if (dx<CutNearest && dx>-CutNearest)
+		{
+			dy=Cube.y-Atoms[m].y;
+			if (dy<CutNearest && dy>-CutNearest)
+			{
+				dz=Cube.z-Atoms[m].z;
+				if (dx<CutNearest && dz>-CutNearest)
+				{
+					r=sqrt(dx*dx+dy*dy+dz*dz)-Atoms[m].vdw;
+					if (r<Cube.MinDist)
+					{
+						Cube.MinDist=r;
+						Cube.nearest=m;
+						CutNearest=Cube.MinDist+LargestRadius;
+					}
+				}
+			}
+		}
+	}
+	Cube.MinDist+=Atoms[Cube.nearest].vdw;
+}
+
+void FindNearestHydrationRadius(CubeStruct &Cube, vector<AtomStruct> &Atoms, int natom, Real LargestRadius)
+{
+	bool BoolPrint=false;
+	Real Maxdist=1000.0;
+	Real r, dx, dy, dz;
+	Cube.MinDist=1000.0;
+	Real d=0.1;
+	if (abs(Cube.x+25.874)<d && abs(Cube.y-1.94)<d && abs(Cube.z+7.653)<d)
+	{
+		BoolPrint=true;
+	}
+	for (int n=0;n<natom;n++)
+	{
+		dx=Cube.x-Atoms[n].x;
+
+		if (dx<Maxdist && dx>-Maxdist)
+		{
+			dy=Cube.y-Atoms[n].y;
+			if (dy<Maxdist && dy>-Maxdist)
+			{
+				dz=Cube.z-Atoms[n].z;
+				if (dz<Maxdist && dz>-Maxdist)
+				{
+					r=sqrt(dx*dx+dy*dy+dz*dz)-Atoms[n].HydrationRadius;
+					if (r<Cube.MinDist)
+					{
+						Cube.MinDist=r;
+						Cube.SecondNearest=Cube.nearest;
+						Cube.nearest=n;
+						Maxdist=Cube.MinDist+LargestRadius;
+					}
+					if (BoolPrint)
+					{
+						cout <<"n= "<<n<<endl;
+						//Cubes[m].x+=0.000001;
+						cout <<setprecision(10)<<"xgrid= "<<Cube.x<<" ygrid= "<<Cube.y<<" zgrid= "<<Cube.z<<endl;
+						PrintAtomInfo(Atoms[n]);			
+						cout <<"dx= "<<dx<<" dy= "<<dy<<" dz= "<<dz<<endl;
+						cout <<"r= "<<r<<" SolventAtomR["<<Atoms[n].atomid<<"]= "<<Atoms[n].HydrationRadius<<endl;
+						cout <<"Maxdist= "<<Maxdist<<" mindist= "<<Cube.MinDist<<" nearest= "<<Cube.nearest<<endl;
+						cout <<endl;
+					}
+				}
+			}
+		}
+	}
+	Cube.MinDist+=Atoms[Cube.nearest].HydrationRadius;
+}
+
+void DetermineNearestForAllCubes(vector<CubeStruct> &Cubes, vector<AtomStruct> &Atoms, int natom, Real maxhs)
+{
+	bool BoolPrint=false;
+	Real LargestRadius, Maxdist;
+	int GridPoints=Cubes.size();
+
+	LargestRadius=0;
+	for (int n=0;n<natom;n++)
+	{
+		if (Atoms[n].HydrationRadius>LargestRadius) 
+		{
+			LargestRadius=Atoms[n].HydrationRadius;
+			cout <<"LargestRadius= "<<LargestRadius<<endl;
+			PrintAtomInfo(Atoms[n]);
+		}
+	}
+	//Real d=0.1;
+	for (int m=0;m<GridPoints;m++)
+	{
+		Maxdist=1000.0;
+		Cubes[m].MinDist=1000.0;
+		if (Cubes[m].LocatedIn==InHydrationShell)
+		{
+			FindNearestHydrationRadius(Cubes[m], Atoms, natom, LargestRadius);
+		}
+		BoolPrint=false;
+	}
+	for (int n=0;n<GridPoints;n++)
+	{
+		if (Cubes[n].LocatedIn==InHydrationShell)
+		{
+			if (Cubes[n].MinDist>maxhs) Cubes[n].LocatedIn=InSolution;
+		}
+		//cout <<"Cubes["<<n<<"].MinDist= "<<Cubes[n].MinDist
+		//<<" nearest= "<<Cubes[n].nearest
+		//<<" HydrationRadius= "<<Atoms[Cubes[n].nearest].HydrationRadius<<endl;
+	}
+}
+
+void location4(int natom, Real xmin, Real xmax, Real ymin, Real ymax, Real zmin, Real zmax, vector<CubeStruct> &Cubes, vector<AtomStruct> Atoms, Real maxhs)
+{
+	//!!!This needs to be fixed before using
+	//Determines which set of points in an array are in the protein, hydration shell, or bulk solvent.
+	//Also determines the atom surface which is closest to each of the points.
+	//Moves a sphere with radius=1.4 A on lattice.  If no overlaps with sphere then every grid point in
+	//the sphere is in hydration shell or bulk solvent.
+	cout <<"In location 4"<<endl;
+	int GridPoints=Cubes.size();
+	int PairListNum, PairListNum2, PairListNum3;
+	int *PairList, *PairList2, *PairList3;
+	bool SphereOverlap;
+	Real CutOff, CutOff2;
+	Real LargestRadius;
+	Real inc;
+	Real ProbeRadius, ProbeRadius2;
+	Real xgrid, ygrid, zgrid;
+	Real XPairMax, XPairMin;
+	Real YPairMax, YPairMin;
+	Real XPairMax2, XPairMin2;
+	Real YPairMax2, YPairMin2;
+	Real dx, dy, dz;
+	clock_t end, start, TotalInIsOverlap=0, TotalInFindNearest=0;
+	//clock_t TotalInFindAllNearest=0;
+	clock_t TotalMakingPairList=0;
+	clock_t TotalAfterSphereOverlap=0;
+	time_t seconds1, seconds2;
+
+	seconds1=time(NULL);
+	PairList=new int[natom];
+	PairList2=new int[GridPoints];
+	PairList3=new int[GridPoints];
+
+	for (int n=0;n<natom;n++) PairList[n]=0;
+
+	for (int n=0;n<GridPoints;n++) 
+	{
+		PairList2[n]=0;
+		PairList3[n]=0;
+	}
+
+	for (int n=0;n<GridPoints;n++) Cubes[n].LocatedIn=InProtein;
+	LargestRadius=0.0;
+	cout <<"natom= "<<Atoms.size()<<endl;
+	cout <<"GridPoints= "<<GridPoints<<endl;
+	for (int n=0;n<natom;n++)
+	{
+		if (Atoms[n].vdw>LargestRadius) LargestRadius=Atoms[n].vdw;
+	}
+	seconds2=time(NULL);
+	cout <<"Initialization time was "<<seconds2-seconds1<<" seconds."<<endl;
+
+
+	//ProbeRadius=0.75;
+	ProbeRadius=1.4;
+	inc=0.5;
+	CutOff=ProbeRadius+LargestRadius;
+	CutOff2=CutOff*CutOff;
+	ProbeRadius2=ProbeRadius*ProbeRadius;
+
+	for (xgrid=xmin;xgrid<xmax;xgrid+=inc)
+	{
+		//cout <<"xgrid= "<<xgrid<<endl;
+		PairListNum3=0;
+		XPairMax2=xgrid+ProbeRadius;
+		XPairMin2=xgrid-ProbeRadius;
+		for (int n=0;n<GridPoints;n++)
+		{
+			if (Cubes[n].x>XPairMin2 && Cubes[n].x<XPairMax2)
+			{
+				PairList3[PairListNum3]=n;
+				PairListNum3++;
+			}
+		}
+		for (ygrid=ymin;ygrid<ymax;ygrid+=inc)
+		{
+			start=clock();
+			PairListNum=0;
+			XPairMax=xgrid+CutOff;
+			XPairMin=xgrid-CutOff;
+			YPairMax=ygrid+CutOff;
+			YPairMin=ygrid-CutOff;
+
+			for (int n=0;n<natom;n++)
+			{
+				if (Atoms[n].x>XPairMin && Atoms[n].x<XPairMax && Atoms[n].y>YPairMin && Atoms[n].y<YPairMax)
+				{
+					PairList[PairListNum]=n;
+					PairListNum++;
+				}
+			}
+
+			PairListNum2=0;
+			YPairMax2=ygrid+ProbeRadius;
+			YPairMin2=ygrid-ProbeRadius;
+
+			for (int n=0;n<PairListNum3;n++)
+			{
+				if (Cubes[n].y>YPairMin2 && Cubes[n].y<YPairMax2)
+				{
+					PairList2[PairListNum2]=PairList3[n];
+					PairListNum2++;
+				}
+			}
+
+			end=clock();
+			TotalMakingPairList+=(end-start);
+			for (zgrid=zmin;zgrid<zmax;zgrid+=inc)
+			{
+				start=clock();
+				SphereOverlap=IsOverlapPairlist(Atoms, PairList, PairListNum, CutOff, CutOff2, ProbeRadius, xgrid, ygrid, zgrid);
+				end=clock();
+				TotalInIsOverlap+=(end-start);
+				start=clock();
+				if (!SphereOverlap)
+				{
+					for (int n=0;n<PairListNum2;n++)
+					{
+						if (Cubes[PairList2[n]].LocatedIn==InProtein)
+						{
+							dz=Cubes[PairList2[n]].z-zgrid;
+							if (dz<ProbeRadius && dz>-ProbeRadius)
+							{
+								dx=Cubes[PairList2[n]].x-xgrid;
+								dy=Cubes[PairList2[n]].y-ygrid;
+								if ( (dx*dx+dy*dy+dz*dz)<ProbeRadius2)
+								{
+									start=clock();
+									FindNearestVDWSurface(Cubes[PairList2[n]], Atoms, natom, LargestRadius);
+									end=clock();
+									TotalInFindNearest+=(end-start);
+									if (Cubes[PairList2[n]].MinDist<maxhs) Cubes[PairList2[n]].LocatedIn=InHydrationShell;
+									else Cubes[PairList2[n]].LocatedIn=InSolution;
+								}
+							}
+						}
+					}	
+				}
+				end=clock();
+				TotalAfterSphereOverlap+=(end-start);
+			}
+		}
+	}
+
+	for (int n=0;n<GridPoints;n++)
+	{
+		//cout <<"Cubes["<<n<<"].MinDist= "<<Cubes[n].MinDist<<" Cubes.nearest= "<<Cubes[n].nearest<<" Atoms.vdw= "<<Atoms[Cubes[n].nearest].vdw<<endl;
+		Cubes[n].MinDist+=Atoms[Cubes[n].nearest].vdw;
+	}
+	cout <<"Time in IsOverlap was "<<Real(TotalInIsOverlap)/Real(CLOCKS_PER_SEC)<<" seconds."<<endl;
+	cout <<"Time in FindNearest was "<<Real(TotalInFindNearest)/Real(CLOCKS_PER_SEC)<<" seconds."<<endl;
+	cout <<"Time in MakingPairList was "<<Real(TotalMakingPairList)/Real(CLOCKS_PER_SEC)<<" seconds."<<endl;
+	cout <<"Time in AfterOverlap was "<<Real(TotalAfterSphereOverlap)/Real(CLOCKS_PER_SEC)<<" seconds."<<endl;
+	seconds1=time(NULL);
+	start=clock();
+	DetermineNearestForAllCubes(Cubes, Atoms, natom, maxhs);
+	end=clock();
+	seconds2=time(NULL);
+	cout <<"Time in FindAllNearest was "<<Real(end-start)/Real(CLOCKS_PER_SEC)<<" seconds."<<endl;
+	cout <<"WallClock time in FindAllNearest was "<<seconds2-seconds1<<" seconds."<<endl;
+
+	delete [] PairList;
+	delete [] PairList2;
+	delete [] PairList3;
+	cout <<"Exiting location4"<<endl;
+}
+
+void MakeGrid(Real xmin, Real ymin, Real zmin, Real xmax, Real ymax, Real zmax, Real CubeSize, vector<CubeStruct> &Cubes)
+{
+	Real xgrid, ygrid, zgrid;
+	CubeStruct Cube;
+	DeleteVector(Cubes);
+	InitializeCube(Cube);
+	for (xgrid=xmin;xgrid<=xmax;xgrid+=CubeSize)
+	{
+		for (ygrid=ymin;ygrid<=ymax;ygrid+=CubeSize)
+		{
+			for (zgrid=zmin;zgrid<=zmax;zgrid+=CubeSize)
+			{
+				Cube.x=xgrid;
+				Cube.y=ygrid;
+				Cube.z=zgrid;
+				Cubes.push_back(Cube);
+			}
+		}
+	}
+}
+
+void Round(Real &x)
+{
+	x=Real(int(x*1000.0))/1000.0;
+}
+
+void ExpandMinMax(Real &xmin, Real &ymin, Real &zmin, Real &xmax, Real &ymax, Real &zmax, ParamStruct params)
+{
+	int n;
+	n=int(floor((xmax+10.0+params.XBoxLength*0.5)/params.CubeSize+1.0));
+	xmax=-params.XBoxLength*0.5-params.CubeSize*0.5+params.CubeSize*Real(n);
+	n=int(floor((xmin-10.0+params.XBoxLength*0.5)/params.CubeSize+1.0));
+	xmin=-params.XBoxLength*0.5-params.CubeSize*0.5+params.CubeSize*Real(n);
+	n=int(floor((ymax+10.0+params.YBoxLength*0.5)/params.CubeSize+1.0));
+	ymax=-params.YBoxLength*0.5-params.CubeSize*0.5+params.CubeSize*Real(n);
+	n=int(floor((ymin-10.0+params.YBoxLength*0.5)/params.CubeSize+1.0));
+	ymin=-params.YBoxLength*0.5-params.CubeSize*0.5+params.CubeSize*Real(n);
+	n=int(floor((zmax+10.0+params.ZBoxLength*0.5)/params.CubeSize+1.0));
+	zmax=-params.ZBoxLength*0.5-params.CubeSize*0.5+params.CubeSize*Real(n);
+	n=int(floor((zmin-10.0+params.ZBoxLength*0.5)/params.CubeSize+1.0));
+	zmin=-params.ZBoxLength*0.5-params.CubeSize*0.5+params.CubeSize*Real(n);
+	xmin+=0.0005;
+	zmin-=0.0005;
+	//Round(xmin);
+	//Round(ymin);
+	//Round(zmin);
+}
+
+void EliminateCavities(vector<AtomStruct> &Atoms, Real HydrationShellRadius)
+{
+	bool changed=true;
+	int m, n, TotalParticles=Atoms.size();
+	int natom;
+	int * group;
+	Real dist, dsqr;
+	Real dx, dy, dz;
+	Real xn, yn, zn;
+	group=new int[TotalParticles];
+	natom=FindNumProteinAtoms(Atoms);
+	for (n=0;n<TotalParticles;n++) group[n]=0;
+
+	for (n=natom;n<TotalParticles;n++)
+	{
+		if (Atoms[n].atomid==HydrationShell) group[n]=n;
+	}
+
+	dsqr=4.0*HydrationShellRadius*HydrationShellRadius;
+	while (changed)
+	{
+		changed=false;
+		for (n=TotalParticles-1;n>natom-1;n=n-1)
+		{
+			xn=Atoms[n].x;
+			yn=Atoms[n].y;
+			zn=Atoms[n].z;
+			if (Atoms[n].atomid==HydrationShell)
+			{
+				for (m=natom;m<TotalParticles;m++)
+				{
+					if (Atoms[m].atomid==HydrationShell)
+					{
+						dx=xn-Atoms[m].x;
+						dy=yn-Atoms[m].y;
+						dz=zn-Atoms[m].z;
+						dist=dx*dx+dy*dy+dz*dz;
+						if (dist<3.0)
+						{
+							if (group[n]>group[m])
+							{
+								group[m]=group[n];
+								changed=true;
+							}
+							else
+							{
+								group[n]=group[m];
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	//tmax=0;
+	/*************************************************************************************************************************************
+
+	  for (n=natom;n<w;n++)
+	  {
+	  if (atomid[n]==HydrationShell)
+	  {
+
+	  while(true)
+	  {
+	  for (t=0;t<tmax;t++)
+	  {
+	  if (group[n]==cavity[t])
+	  {
+	  cavityid[n]=t;
+	  break;
+	  }
+	  }
+
+	  cavity[tmax]=group[n];
+	  cavityid[n]=tmax;
+	  tmax++;
+	  }
+	  }
+	  }
+
+	 *****************************************************************************************************************************/
+
+	for (n=natom;n<TotalParticles;n++)
+	{
+		if (Atoms[n].atomid==HydrationShell)
+		{
+			if (group[n]<TotalParticles-1)
+			{
+				Atoms[n].atomid=ExcludedVolume;
+			}
+		}
+	}
+	delete [] group;
+}
+
+void ConvertGrid(Real xmin, Real ymin, Real zmin, vector<CubeStruct> &cubes, Real CubeSize, vector< vector< vector<int> > > &CubeConversion)
+{
+	int m, n, CubeNum=cubes.size();
+	int xbin, ybin, zbin;
+	int MaxXBin, MaxYBin, MaxZBin;
+	MaxXBin=CubeConversion.size();
+	MaxYBin=CubeConversion[0].size();
+	MaxZBin=CubeConversion[0][0].size();
+	cout <<"In ConvertGrid"<<endl;
+	cout <<"MaxXBin= "<<MaxXBin<<" MaxYBin= "<<MaxYBin<<" MaxZBin= "<<MaxZBin<<endl;
+	for (xbin=0; xbin<MaxXBin; xbin++)
+	{
+		for (ybin=0; ybin<MaxYBin; ybin++)
+		{
+			for (zbin=0; zbin<MaxZBin; zbin++)
+			{
+				CubeConversion[xbin][ybin][zbin]=-1;
+			}
+		}
+	}
+	cout <<"Reset CubeConversion"<<endl;
+	m=0;
+	cout <<"xmin= "<<xmin<<" ymin= "<<ymin<<" zmin= "<<zmin<<endl;
+	cout <<"CubeSize= "<<CubeSize<<endl;
+	for (n=0;n<CubeNum;n++)
+	{
+		//cout <<"n= "<<n<<" CubeNum= "<<CubeNum<<endl;
+		xbin=int(floor((cubes[n].x-xmin)/CubeSize+0.5));
+		ybin=int(floor((cubes[n].y-ymin)/CubeSize+0.5));
+		zbin=int(floor((cubes[n].z-zmin)/CubeSize+0.5));
+		if (n==0)
+		{
+			cout <<"xbin= "<<xbin<<" ybin= "<<ybin<<" zbin= "<<zbin<<endl;
+			cout <<"x= "<<cubes[n].x<<" y= "<<cubes[n].y<<" z= "<<cubes[n].z<<endl;
+		}
+		//cout <<"CubeConversion= "<<CubeConversion[xbin][ybin][zbin]<<endl;
+		CubeConversion[xbin][ybin][zbin]=n;
+	}
+	cout <<"Done with convert grid"<<endl;
+}
+
+void AllocateCubeConversion(int MaxXBin, int MaxYBin, int MaxZBin, vector< vector< vector<int> > > &CubeConversion)
+{
+	int i;
+	vector<int> v;
+	vector< vector<int> > m;
+	cout <<"MaxXBin= "<<MaxXBin<<endl;
+	for (i=0;i<MaxZBin;i++) v.push_back(0);
+	for (i=0;i<MaxYBin;i++) m.push_back(v);
+	for (i=0;i<MaxXBin;i++) CubeConversion.push_back(m);
+	cout <<"CubeConversion.size()= "<<CubeConversion.size()<<endl;
+}
+
+bool UpdateCubeGroups(vector<CubeStruct> &cubes, Real InvCubeSize, int GroupedWith[], vector< vector< vector<int> > > &CubeConversion)
+{
+	bool changed;
+	int m, n, CubeNum=cubes.size();
+	int MaxXBin, MaxYBin, MaxZBin;
+	int xbin, ybin, zbin;
+	int xbin2, ybin2, zbin2;
+	int xstart, ystart, zstart;
+	int xend, yend, zend;
+	Real xmax, ymax, zmax;
+	Real xmin, ymin, zmin;
+	MaxXBin=CubeConversion.size();
+	MaxYBin=CubeConversion[0].size();
+	MaxZBin=CubeConversion[0][0].size();
+	MinMax(xmin, ymin, zmin, xmax, ymax, zmax, cubes);
+	changed=false;
+	for (m=0;m<CubeNum;m++)
+	{
+		//cout <<"CubeLocation["<<m<<"]= "<<CubeLocation[m]<<endl;
+		if (cubes[m].LocatedIn!=InProtein)
+		{	
+			//cout <<"CubeX= "<<CubeX[m]<<" CubeY= "<<CubeY[m]<<" CubeZ= "<<CubeZ[m]<<endl;
+			xbin=int((cubes[m].x-xmin)*InvCubeSize+0.5);
+			ybin=int((cubes[m].y-ymin)*InvCubeSize+0.5);
+			zbin=int((cubes[m].z-zmin)*InvCubeSize+0.5);
+			//cout <<"xbin= "<<xbin<<" ybin= "<<ybin<<" zbin= "<<zbin<<endl;
+			//cout <<"MaxXBin= "<<MaxXBin<<" MaxYBin= "<<MaxYBin<<" MaxZBin= "<<MaxZBin<<endl;
+			xstart=xbin-1;
+			ystart=ybin-1;
+			zstart=zbin-1;
+
+			xend=xbin+1;
+			yend=ybin+1;
+			zend=zbin+1;
+
+			if (xstart<0) xstart=0;
+			if (ystart<0) ystart=0;
+			if (zstart<0) zstart=0;
+
+			if (xend>=MaxXBin) xend=MaxXBin-1;
+			if (yend>=MaxYBin) yend=MaxYBin-1;
+			if (zend>=MaxZBin) zend=MaxZBin-1;
+
+			for (xbin2=xstart;xbin2<=xend;xbin2++)
+			{
+				n=CubeConversion[xbin2][ybin][zbin];
+				if (n>=0 && cubes[n].LocatedIn!=InProtein)
+				{
+					if (GroupedWith[m]!=GroupedWith[n]) 
+					{
+						changed=true;
+						if (GroupedWith[m]<GroupedWith[n]) GroupedWith[n]=GroupedWith[m];
+						else GroupedWith[m]=GroupedWith[n];
+					}
+				}
+			}
+
+
+			for (ybin2=ystart;ybin2<=yend;ybin2++)
+			{
+				n=CubeConversion[xbin][ybin2][zbin];
+				if (n>=0 && cubes[n].LocatedIn!=InProtein)
+				{
+					if (GroupedWith[m]!=GroupedWith[n]) 
+					{
+						changed=true;
+						if (GroupedWith[m]<GroupedWith[n]) GroupedWith[n]=GroupedWith[m];
+						else GroupedWith[m]=GroupedWith[n];
+					}
+				}
+			}
+
+
+			for (zbin2=zstart;zbin2<=zend;zbin2++)
+			{
+				n=CubeConversion[xbin][ybin][zbin2];
+				if (n>=0 && cubes[n].LocatedIn!=InProtein)
+				{
+					if (GroupedWith[m]!=GroupedWith[n]) 
+					{
+						changed=true;
+						if (GroupedWith[m]<GroupedWith[n]) GroupedWith[n]=GroupedWith[m];
+						else GroupedWith[m]=GroupedWith[n];
+					}
+				}
+			}
+		}
+	}
+	return changed;
+}
+
+void EliminateCavities(Real xmin, Real ymin, Real zmin, Real contrast, vector<CubeStruct> &cubes, Real CubeSize)
+{
+	bool changed;
+	int m, n, CubeNum=cubes.size();
+	int MaxXBin, MaxYBin, MaxZBin;
+	int NumIterations;
+	int *GroupedWith;
+	vector< vector< vector<int> > > CubeConversion;
+	Real InvCubeSize=1.0/CubeSize;
+	Real xmax, ymax, zmax;
+	time_t seconds1;
+	time_t seconds2;
+
+
+	seconds1=time(NULL);
+	MinMax(xmin, ymin, zmin, xmax, ymax, zmax, cubes);
+	MaxXBin=int((xmax-xmin)*InvCubeSize+0.5)+1;
+	MaxYBin=int((ymax-ymin)*InvCubeSize+0.5)+1;
+	MaxZBin=int((zmax-zmin)*InvCubeSize+0.5)+1;
+	AllocateCubeConversion(MaxXBin, MaxYBin, MaxZBin, CubeConversion);
+	ConvertGrid(xmin, ymin, zmin, cubes, CubeSize, CubeConversion);
+	cout <<"In EliminateCavities"<<endl;
+	cout <<"CubeNum= "<<CubeNum<<endl;
+	GroupedWith=new int[CubeNum];
+	cout <<"Allocated GroupedWith"<<endl;
+	for (n=0;n<CubeNum;n++) GroupedWith[n]=0;
+	for (n=0;n<CubeNum;n++) GroupedWith[n]=n;
+	cout <<"Initialized GroupedWith"<<endl;
+
+	NumIterations=0;
+	while (true)
+	{
+		changed=false;
+		NumIterations++;
+		cout <<"NumIterations= "<<NumIterations<<endl;
+		changed=UpdateCubeGroups(cubes, InvCubeSize, GroupedWith, CubeConversion);
+		if (!changed) break;
+	}
+	cout <<"Found Groups"<<endl;
+	cout <<"NumIterations= "<<NumIterations<<endl;
+	for (m=0;m<CubeNum;m++)
+	{
+		if (GroupedWith[m]!=0 && cubes[m].LocatedIn!=InProtein)
+		{
+			cout <<"GroupedWith["<<m<<"]= "<<GroupedWith[m]<<endl;
+			cubes[m].density=-contrast;
+			cubes[m].LocatedIn=InProtein;
+		}
+	}
+	delete [] GroupedWith;
+	seconds2=time(NULL);
+	cout <<"EliminatedCavities"<<endl;
+	cout <<"Eliminate Cavities took "<<seconds2-seconds1<<" seconds."<<endl;
+}
+
+inline bool GetDensity(Real &density, AtomStruct Atom, int distance, Matrix &AtomTypesDensityMatrix, Matrix &ElementsDensityMatrix, Real BulkDensity)
+{
+	int SolventType;
+	//Real density;
+	SolventType=Atom.AtomType;
+	density=AtomTypesDensityMatrix[SolventType][distance];
+	if (density==UNK_DENSITY) 
+	{
+		SolventType=Atom.AtomType2;
+		cout <<"Warning unable to assign cube density from AtomTypes pRDF. SolventType="<< Atom.AtomType<<" distance= "<<distance<<" ResidueName= "<<Atom.ResidueName<<" AtomName= "<<Atom.AtomName<<endl;
+		cout <<"AtomType2= "<<Atom.AtomType2<<endl;
+		//cout <<"ElementsDensityMatrix= "<<ElementsDensityMatrix<<endl;
+		density=ElementsDensityMatrix[SolventType][distance];
+	}
+	if (density==UNK_DENSITY)
+	{
+		cout <<"Warning unable to assign cube density.  Setting cube density to bulk solvent"<<endl;
+		PrintAtomInfo(Atom);
+		cout <<"distance= "<<distance<<endl;
+		density=BulkDensity;
+		return false;
+	}
+	return true;
+}
+
+int solvent(Real atomr[], vector<AtomStruct> &Atoms, Real contrast, ParamStruct &params)
+{
+	AtomStruct Atom;
+	int TotalParticles=Atoms.size();
+	int distance;
+	int LocatedIn, nearest;
+	int natom;
+	Real dx, dy, dz;
+	Real inc;
+	Real dist;
+	Real xgrid, ygrid, zgrid;
+	Real xmax, ymax, zmax;
+	Real xmin, ymin, zmin;
+	Real xstart[5], ystart[5], zstart[5];
+	vector< vector<Real> > AtomTypesDensityMatrix, ElementsDensityMatrix;
+	int temp=Atoms.size();
+
+	Atom.ResidueName="HOH";
+	Atom.AtomName="O";
+
+	natom=FindNumProteinAtoms(Atoms);
+	if (!params.UniformHydrationShell)
+	{
+		cout <<"About to readgofrfile"<<endl;
+		ReadGofRFile3(params.AtomTypesGofRFile, contrast, AtomTypesDensityMatrix);
+		ReadGofRFile3(params.ElementsGofRFile, contrast, ElementsDensityMatrix);
+		cout <<"Finished reading gofrfile"<<endl;
+		params.maxhs=8.0;
+	}
+	else params.maxhs=3.0;
+
+	for (int n=temp;0<=n;n--)
+	{
+		if (Atoms[n].atomid==HydrationShell || Atoms[n].atomid==ExcludedVolume)
+		{
+			Atoms.pop_back();
+		}
+	}
+
+
+	for (int t=0;t<5;t++)
+	{
+		xstart[t]=0;
+		ystart[t]=0;
+		zstart[t]=0;
+	}
+	MinMax(xmin, ymin, zmin, xmax, ymax, zmax, Atoms);
+	PrintAtomInfo(Atoms[0]);
+	cout <<"xmin= "<<xmin<<" ymin= "<<ymin<<" zmin= "<<zmin<<" xmax= "<<xmax<<" ymax= "<<ymax<<" zmax= "<<zmax<<endl;
+	inc=atomr[HydrationShell]*2.0*sqrt(2.0);
+
+	xstart[0]=0;
+	ystart[0]=0;
+	zstart[0]=0;
+
+	xstart[1]=0;
+	ystart[1]=-inc*0.5;
+	zstart[1]=-inc*0.5;
+
+	xstart[2]=-inc*0.5;
+	ystart[2]=0;
+	zstart[2]=-inc*0.5;
+
+	xstart[3]=-inc*0.5;
+	ystart[3]=-inc*0.5;
+	zstart[3]=0;
+
+	TotalParticles=natom;
+
+	cout <<"atomr[HydrationShell]= "<<atomr[HydrationShell]<<" inc= "<<inc<<endl;
+	for (int t=0;t<4;t++)
+	{
+		for (xgrid=xmin+xstart[t]-4.0;xgrid<xmax+4.0+inc;xgrid+=inc)
+		{
+			//cout <<"xgrid= "<<xgrid<<endl;
+			for (ygrid=ymin+ystart[t]-4.0;ygrid<ymax+4.0+inc;ygrid+=inc)
+			{
+				//cout <<"ygrid= "<<ygrid<<endl;
+				for (zgrid=zmin+zstart[t]-4.0;zgrid<zmax+4.0+inc;zgrid+=inc)
+				{
+					//cout <<"zgrid= "<<zgrid<<endl;
+					//cout <<"About to enter location"<<endl;
+					LocatedIn=location(xgrid, ygrid, zgrid, natom, nearest, dist, Atoms, params.maxhs);
+					if (LocatedIn!=InProtein && LocatedIn!=InHydrationShell && LocatedIn!=InSolution) cout <<"Error location not identified"<<endl;
+					if (LocatedIn==InHydrationShell)
+					{
+						//cout <<"value=InHydrationShell"<<endl;
+					}
+					//cout <<"xgrid= "<<xgrid<<" ygrid= "<<ygrid<<" zgrid= "<<zgrid<<" value= "<<value<<" nearest= "<<nearest<<endl;
+					//cout <<"Left location"<<endl;
+					if (params.excluded=="Lattice")
+					{
+						if (LocatedIn==InProtein)
+						{
+							Atom.x=xgrid;
+							Atom.y=ygrid;
+							Atom.z=zgrid;
+							Atom.atomid=ExcludedVolume;
+							Atom.weight=1.0;
+							Atoms.push_back(Atom);
+						}
+					}
+
+					if (LocatedIn==InHydrationShell)
+					{
+						Atom.x=xgrid;
+						Atom.y=ygrid;
+						Atom.z=zgrid;
+						if (!params.UniformHydrationShell)
+						{
+							//cout <<"In if(!Uniform)"<<endl;
+							distance=int(floor(dist*10.0+0.5));
+							//cout <<"nearest= "<<nearest<<" distance= "<<distance<<endl;
+							//cout <<"solventtype= "<<solventtype[nearest]<<endl;
+							//cout <<"densitym= "<<densitym[solventtype[nearest]][distance]<<endl;
+							GetDensity(Atom.weight, Atoms[nearest], distance, AtomTypesDensityMatrix, ElementsDensityMatrix, 0);
+
+							//if (weight[TotalParticles]<-0.01 || weight[TotalParticles]>0.01)
+							//{
+							Atom.atomid=HydrationShell;
+							Atoms.push_back(Atom);
+							//}
+						}
+						else
+						{
+							dx=Atoms[nearest].x-xgrid;
+							dy=Atoms[nearest].y-ygrid;
+							dz=Atoms[nearest].z-zgrid;
+							dist=sqrt(dx*dx+dy*dy+dz*dz);
+							Atom.weight=1.0;
+							if (dist > atomr[Atoms[nearest].atomid] && dist < Atoms[nearest].vdw)
+							{
+								Atom.atomid=ExcludedVolume;
+								//cout <<"Made excluded volume dummy atom."<<endl;
+							}
+							else
+							{
+								Atom.atomid=HydrationShell;
+							}
+							Atoms.push_back(Atom);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	EliminateCavities(Atoms, atomr[HydrationShell]);
+	cout <<"TotalParticles-natom="<<TotalParticles-natom<<endl;
+
+	cout <<"About to enter PrintPDB"<<endl;
+
+	//PrintPDB(TotalParticles, atomid);
+
+	return TotalParticles;
+}
+
+void GetBins(Real xgrid, Real ygrid, Real zgrid, Real xmin, Real ymin, Real zmin, int &xbin, int &ybin, int &zbin, Real CubeSize)
+{
+	xbin=int((xgrid-xmin)/CubeSize+0.5);
+	ybin=int((ygrid-ymin)/CubeSize+0.5);
+	zbin=int((zgrid-zmin)/CubeSize+0.5);
+}
+
+void AssignCubeDensities(vector<CubeStruct> &Cubes, vector<AtomStruct> Atoms, Matrix &AtomTypesDensityMatrix, Matrix &ElementsDensityMatrix, Real BulkDensity, bool UniformHydrationShellDensity, Real HydrationShellDensity)
+{
+	bool SetDensity;
+	int n, GridPoints=Cubes.size();
+	Real density;
+	vector<CubeStruct> TempCubes;
+	clock_t start, end, total=0;
+	for (n=0;n<GridPoints;n++)
+	{
+		//if (n%100==0) cout <<"n= "<<n<<endl;
+		if (Cubes[n].LocatedIn==InHydrationShell)
+		{
+			Cubes[n].IntDist=int(Cubes[n].MinDist*10.0+0.5);
+			start=clock();
+			if (UniformHydrationShellDensity) density=HydrationShellDensity;
+			else SetDensity=GetDensity(density, Atoms[Cubes[n].nearest], Cubes[n].IntDist, AtomTypesDensityMatrix, ElementsDensityMatrix, BulkDensity);
+			if (!SetDensity)
+			{
+				PrintCubeInfo(Cubes[n]);
+				cout <<"AtomTypesDensityMatrix["<<Atoms[Cubes[n].nearest].AtomType<<"]["<<Cubes[n].IntDist<<"]= "<<AtomTypesDensityMatrix[Atoms[Cubes[n].nearest].AtomType][Cubes[n].IntDist]<<endl;
+			}
+			Cubes[n].AtomType=Atoms[Cubes[n].nearest].AtomType;
+			end=clock();
+			total+=(end-start);
+			Cubes[n].density=density;
+			TempCubes.push_back(Cubes[n]);
+		}
+
+		if (Cubes[n].LocatedIn==InProtein)
+		{
+			Cubes[n].density=0;
+			TempCubes.push_back(Cubes[n]);
+		}
+	}
+	CopyVector(TempCubes, Cubes);
+	cout <<"Time spent in GetDensity was "<<Real(total)/Real(CLOCKS_PER_SEC)<<" seconds."<<endl;
+}
+
+void BuildHydrationShell(vector<CubeStruct> &Cubes, vector<AtomStruct> &Atoms, Matrix &AtomTypesDensityMatrix, Matrix &ElementsDensityMatrix, Real BulkDensity, bool UniformHydrationShell, Real hsdensity, ParamStruct params)
+{
+	DeleteVector(Cubes);
+	int natom=Atoms.size();
+	Real xmax, ymax, zmax;
+	Real xmin, ymin, zmin;
+	time_t seconds1, seconds2;
+	MinMax(xmin, ymin, zmin, xmax, ymax, zmax, Atoms);
+	cout <<"xmin= "<<xmin<<" ymin= "<<ymin<<" zmin= "<<zmin<<endl;
+	ExpandMinMax(xmin, ymin, zmin, xmax, ymax, zmax, params);
+	MakeGrid(xmin, ymin, zmin, xmax, ymax, zmax, params.CubeSize, Cubes);	
+	cout <<"xmin= "<<xmin<<" ymin= "<<ymin<<" zmin= "<<zmin<<endl;
+	seconds1=time(NULL);
+	location4(natom, xmin, xmax, ymin, ymax, zmin, zmax, Cubes, Atoms, params.maxhs);
+	seconds2=time(NULL);
+	cout <<"location4 took "<<seconds2-seconds1<<" seconds."<<endl;
+	seconds1=time(NULL);
+	AssignCubeDensities(Cubes, Atoms, AtomTypesDensityMatrix, ElementsDensityMatrix, BulkDensity, UniformHydrationShell, hsdensity);
+	seconds2=time(NULL);
+	cout <<"AssignCubeDensities took "<<seconds2-seconds1<<" seconds."<<endl;
+	//if (!params.EliminateCavities) EliminateCavities(xmin, ymin, zmin, 0, Cubes, CubeSize);
+}
+#endif

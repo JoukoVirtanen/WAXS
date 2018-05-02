@@ -1,0 +1,3 @@
+sed -i "s|_HOME_|$HOME|" *.*
+sed -i "s|_HOME_|$HOME|" ../*/*.*
+g++ -O5 WAXS.cpp -o WAXS

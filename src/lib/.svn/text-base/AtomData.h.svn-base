@@ -1,0 +1,11 @@
+#ifndef _AtomData_included_
+#define _AtomData_included_
+
+vector<int> atomid, atomtype, atomtype2, residueid, AtomNumber, ResidueNumber,
+ResidueNum;
+vector<string> AtomName, ResidueName, ChainName, SegID, ID;
+vector<double> BFactor, Occupancy;
+vector<double> x, y, z;
+vector<double> weight;
+#endif
+

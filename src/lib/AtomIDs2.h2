@@ -1,0 +1,15 @@
+#ifndef _AtomIDs2_included_
+#define _AtomIDs2_included_
+
+const int HYDROGEN=0;
+const int CARBON=1;
+const int NITROGEN=2;
+const int OXYGEN=3;
+const int SULFUR=4;
+const int IRON=5;
+const int PHOSPHORUS=6;
+const int NA_Plus=7;
+
+const int NumAtomTypes=8;
+#endif
+

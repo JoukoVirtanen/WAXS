@@ -1,0 +1,40 @@
+#ifndef _AssignAtomIDs_included_
+#define _AssignAtomIDs_included_
+
+# include <vector>
+
+# include "Structures.h"
+# include "AtomIDs.h"
+# include "StringUtils.h"
+//# include "/home/jouko/HeaderFiles/LinkedList.h"
+
+void AssignAtomIDs(vector<AtomStruct> &Atoms)
+{
+	string ElementID, AtomName;
+	int n, natom;
+
+	natom=Atoms.size();
+
+	for (n=0;n<natom;n++)
+	{
+		Trim(Atoms[n].AtomName);
+		ElementID=Atoms[n].AtomName.substr(0,1);
+		if (ElementID=="H") Atoms[n].atomid=HYDROGEN;
+		else if (ElementID=="C") Atoms[n].atomid=CARBON;
+		else if (ElementID=="N") Atoms[n].atomid=NITROGEN;
+		else if (ElementID=="O") Atoms[n].atomid=OXYGEN;
+		else if (ElementID=="S" && Atoms[n].ResidueName!="SOD") Atoms[n].atomid=SULFUR;
+		else if (ElementID=="F") Atoms[n].atomid=IRON;
+		else if (ElementID=="P") Atoms[n].atomid=PHOSPHORUS;
+		else if (Atoms[n].ResidueName=="SOD" || Atoms[n].ResidueName=="NA0") Atoms[n].atomid=NA_Plus;
+		else
+		{
+			cout <<"Warning unrecognized atom "<<ElementID<<" will be treated as a hydrogen."<<endl;
+			Atoms[n].atomid=HYDROGEN;
+		}
+	}
+	return;
+}
+
+#endif
+
